@@ -9,7 +9,8 @@ var args = process.argv.slice(2);
 var migrate = require('./lib/migrate'),
 	path = require('path'),
 	join = path.join,
-	fs = require('fs');
+	fs = require('fs'),
+	config = require('config');
 
 /**
  * Option defaults.
@@ -22,8 +23,7 @@ var options = { args: [] };
 var previousWorkingDirectory = process.cwd(),
 	cwd = process.cwd();
 
-var configFileName = 'default-config.json',
-		dbProperty = 'mongoAppDb';
+var dbProperty = 'mongoAppDb';
 
 /**
  * Usage information.
@@ -36,7 +36,6 @@ var usage = [
 	, ''
 	, '     -runmm, --runMongoMigrate   Run the migration from the command line',
 	, '     -c, --chdir <path>    		change the working directory'
-	, '     -cfg, --config <path> 		DB config file name'
 	, '     -dbn, --dbPropName <string> Property name for database connection in config file'
 	, ''
 	, '  Commands:'
@@ -241,8 +240,17 @@ function runMongoMigrate(direction, migrationEnd) {
 	 * @param {String} direction
 	 */
 	function performMigration(direction, migrateTo) {
-		var db = require('./lib/db');
-		db.getConnection(require(cwd + path.sep + configFileName)[dbProperty], function (err, db) {
+		var db = require('./lib/db'),
+			url = config[dbProperty].url;
+		if (!url) {
+			if (config[dbProperty].host && config[dbProperty].port && config[dbProperty].db) {
+				url = 'mongodb://' + config[dbProperty].host + ':' + config[dbProperty].port + '/' + config[dbProperty].db;
+			}
+			else {
+				throw new Error("Database configuration not found: config.mongoAppDb.url or config.mongoAppDb.host / config.mongoAppDb.port / config.mongoAppDb.db");
+			}
+		}
+		db.getConnection(url, function (err, db) {
 			var migrationCollection = db.migrationCollection,
 					dbConnection = db.connection;
 			if (err) {
@@ -353,7 +361,6 @@ if (runmmIdx > -1 || runMongoMigrateIdx > -1) {
 	module.exports = {
 		run: runMongoMigrate,
 		changeWorkingDirectory: chdir,
-		setConfigFilename: setConfigFilename,
 		setConfigFileProp: setConfigFileProperty
 	};
 }
